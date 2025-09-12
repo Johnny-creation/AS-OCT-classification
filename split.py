@@ -1,6 +1,9 @@
 import os
 import random
 
+# 设置随机种子以确保可复现性
+random.seed(42)
+
 # 定义数据集根目录
 root_dir = r'.\data'
 
