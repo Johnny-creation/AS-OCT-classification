@@ -112,7 +112,7 @@ def get_model(model_name, num_classes):
     
     return model, input_size
 
-def train_model(model_name='resnet34'):
+def train_model(model_name='resnet34', batch_size=32, epochs=5, learning_rate=0.001, num_workers=4):
     # 根据模型选择输入大小
     model, input_size = get_model(model_name, 4)  # 假设有4个类别
     
@@ -157,8 +157,8 @@ def train_model(model_name='resnet34'):
     
     # 创建数据加载器
     dataloaders = {
-        'train': DataLoader(image_datasets['train'], batch_size=32, shuffle=True, num_workers=4),
-        'val': DataLoader(image_datasets['val'], batch_size=32, shuffle=False, num_workers=4)
+        'train': DataLoader(image_datasets['train'], batch_size=batch_size, shuffle=True, num_workers=num_workers),
+        'val': DataLoader(image_datasets['val'], batch_size=batch_size, shuffle=False, num_workers=num_workers)
     }
     
     dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
@@ -179,13 +179,13 @@ def train_model(model_name='resnet34'):
     
     # 定义损失函数和优化器
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     
     # 学习率调度器
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
     
     # 训练参数
-    num_epochs = 5
+    num_epochs = epochs
     best_acc = 0.0
     
     # 训练循环
@@ -268,9 +268,24 @@ def train_model(model_name='resnet34'):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='训练不同模型')
     parser.add_argument('--model', type=str, default='resnet34', 
-                        choices=['resnet34', 'densenet169', 'efficientnet_b7', 'vgg16', 'vit', 'inception_v3', 'convnext_tiny', 'swin_t', 'mobilenet_v2'],
+                        choices=['resnet34', 'densenet169', 'efficientnet_b7', 'vgg16', 'vit', 
+                                'inception_v3', 'convnext_tiny', 'swin_t', 'mobilenet_v2'],
                         help='选择要训练的模型')
+    parser.add_argument('--batch_size', type=int, default=32,
+                        help='训练的批量大小')
+    parser.add_argument('--epochs', type=int, default=5,
+                        help='训练轮数')
+    parser.add_argument('--lr', type=float, default=0.001,
+                        help='学习率')
+    parser.add_argument('--workers', type=int, default=4,
+                        help='数据加载的线程数')
     args = parser.parse_args()
     
-    model = train_model(args.model)
+    model = train_model(
+        model_name=args.model,
+        batch_size=args.batch_size,
+        epochs=args.epochs,
+        learning_rate=args.lr,
+        num_workers=args.workers
+    )
     print(f'模型训练完成并已保存最佳权重到 weights/best_{args.model}_model.pth')
