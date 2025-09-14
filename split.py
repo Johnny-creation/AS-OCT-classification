@@ -5,7 +5,7 @@ import random
 random.seed(42)
 
 # 定义数据集根目录
-root_dir = r'.\data'
+root_dir = r'./data'
 
 # 定义划分比例
 train_ratio = 0.7
@@ -56,6 +56,10 @@ def get_jpg_files(category, subfolder):
     subfolder_path = os.path.join(root_dir, category, subfolder)
     jpg_files = [f.name for f in os.scandir(subfolder_path) if f.is_file() and f.name.lower().endswith('.jpg')]
     return jpg_files
+
+# 确保dataset目录存在
+if not os.path.exists('dataset'):
+    os.makedirs('dataset')
 
 # 生成三个独立的txt文件
 train_file = os.path.join('dataset', 'train.txt')

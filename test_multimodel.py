@@ -4,9 +4,8 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import models, transforms
 from torchvision.models import (
     ResNet34_Weights, DenseNet169_Weights, 
-    EfficientNet_B7_Weights, VGG16_Weights, 
-    ViT_B_16_Weights, Inception_V3_Weights,
-    ConvNeXt_Tiny_Weights, Swin_T_Weights, MobileNet_V2_Weights
+    EfficientNet_B3_Weights, VGG16_Weights, 
+    ViT_B_16_Weights, ConvNeXt_Tiny_Weights, Swin_T_Weights, MobileNet_V2_Weights
 )
 from PIL import Image
 import os
@@ -17,9 +16,9 @@ import seaborn as sns
 from tqdm import tqdm
 import argparse
 
-# 设置中文字体支持
-plt.rcParams['font.sans-serif'] = ['SimHei']
-plt.rcParams['axes.unicode_minus'] = False
+# # 设置中文字体支持
+# plt.rcParams['font.sans-serif'] = ['SimHei']
+# plt.rcParams['axes.unicode_minus'] = False
 
 class ASOCTDataset(Dataset):
     def __init__(self, txt_file, root_dir, transform=None):
@@ -68,9 +67,9 @@ def get_model(model_name, num_classes):
         num_ftrs = model.classifier.in_features
         model.classifier = nn.Linear(num_ftrs, num_classes)
         input_size = 224
-    elif model_name == 'efficientnet_b7':
-        weights = EfficientNet_B7_Weights.IMAGENET1K_V1
-        model = models.efficientnet_b7(weights=weights)
+    elif model_name == 'efficientnet_b3':
+        weights = EfficientNet_B3_Weights.IMAGENET1K_V1
+        model = models.efficientnet_b3(weights=weights)
         num_ftrs = model.classifier[1].in_features
         model.classifier = nn.Linear(num_ftrs, num_classes)
         input_size = 224
@@ -86,13 +85,6 @@ def get_model(model_name, num_classes):
         num_ftrs = model.heads.head.in_features
         model.heads.head = nn.Linear(num_ftrs, num_classes)
         input_size = 224
-    elif model_name == 'inception_v3':
-        weights = Inception_V3_Weights.IMAGENET1K_V1
-        model = models.inception_v3(weights=weights)
-        num_ftrs = model.fc.in_features
-        model.fc = nn.Linear(num_ftrs, num_classes)
-        # Inception v3 expects input size of 299
-        input_size = 299
     elif model_name == 'convnext_tiny':
         weights = ConvNeXt_Tiny_Weights.IMAGENET1K_V1
         model = models.convnext_tiny(weights=weights)
@@ -123,27 +115,17 @@ def test_model(model_name='resnet34'):
     # 根据模型选择输入大小
     model, input_size = get_model(model_name, 4)  # 假设有4个类别
     
-    # 定义数据预处理
-    if model_name == 'inception_v3':
-        # Inception v3需要299x299的输入
-        data_transforms = transforms.Compose([
-            transforms.Resize((299, 299)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ])
-    else:
-        # 其他模型使用224x224的输入
-        data_transforms = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ])
+    data_transforms = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
     
     # 数据集根目录
-    data_dir = r'.'
+    data_dir = r'./data'
     
     # 创建测试数据集
-    test_dataset = ASOCTDataset('dataset/test.txt', data_dir, data_transforms)
+    test_dataset = ASOCTDataset('./dataset/test.txt', data_dir, data_transforms)
     
     # 创建数据加载器
     test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=4)
@@ -152,13 +134,8 @@ def test_model(model_name='resnet34'):
     class_names = test_dataset.classes
     num_classes = len(class_names)
     
-    print(f"类别数: {num_classes}")
-    print(f"类别名称: {class_names}")
-    print(f"测试集大小: {len(test_dataset)}")
-    
     # 使用GPU如果可用
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print(f"使用设备: {device}")
     
     # 加载训练好的模型权重
     model_save_path = f'weights/best_{model_name}_model.pth'
@@ -171,10 +148,9 @@ def test_model(model_name='resnet34'):
     all_labels = []
     
     # 测试过程
-    print("开始测试...")
     with torch.no_grad():
-        test_loader_tqdm = tqdm(test_loader, desc="测试进度")
-        for inputs, labels in test_loader_tqdm:
+        print(f"开始测试模型: {model_name}")
+        for inputs, labels in test_loader:
             inputs = inputs.to(device)
             labels = labels.to(device)
             
@@ -206,6 +182,10 @@ def test_model(model_name='resnet34'):
     print("\n详细分类报告:")
     print(classification_report(all_labels, all_preds, target_names=class_names))
     
+    # 创建figs目录保存图表
+    figs_dir = 'figs'
+    os.makedirs(figs_dir, exist_ok=True)
+
     # 生成混淆矩阵
     cm = confusion_matrix(all_labels, all_preds)
     
@@ -213,11 +193,12 @@ def test_model(model_name='resnet34'):
     plt.figure(figsize=(10, 8))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
                 xticklabels=class_names, yticklabels=class_names)
-    plt.title(f'{model_name.upper()}混淆矩阵')
-    plt.xlabel('预测标签')
-    plt.ylabel('真实标签')
+    plt.title(f'{model_name.upper()}confusion matrix')
+    plt.xlabel('predict label')
+    plt.ylabel('true label')
     plt.tight_layout()
-    plt.savefig(f'fig/{model_name}_confusion_matrix.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'figs/{model_name}_confusion_matrix.png', dpi=300, bbox_inches='tight')
+    plt.close()  # 关闭图形以释放内存
     
     # 计算每个类别的准确率
     class_accuracy = cm.diagonal() / cm.sum(axis=1)
@@ -225,9 +206,9 @@ def test_model(model_name='resnet34'):
     # 绘制各类别准确率
     plt.figure(figsize=(10, 6))
     bars = plt.bar(class_names, class_accuracy)
-    plt.title(f'{model_name.upper()}各类别准确率')
-    plt.xlabel('类别')
-    plt.ylabel('准确率')
+    plt.title(f'{model_name.upper()}accuracy')
+    plt.xlabel('class')
+    plt.ylabel('accuracy')
     plt.ylim(0, 1)
     
     # 在柱状图上添加数值标签
@@ -236,16 +217,86 @@ def test_model(model_name='resnet34'):
                 f'{acc:.3f}', ha='center', va='bottom')
     
     plt.tight_layout()
-    plt.savefig(f'fig/{model_name}_class_accuracy.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'figs/{model_name}_class_accuracy.png', dpi=300, bbox_inches='tight')
+    plt.close()  # 关闭图形以释放内存
     
     return model, accuracy, precision, recall, f1
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='测试不同模型')
-    parser.add_argument('--model', type=str, default='resnet34', 
-                        choices=['resnet34', 'densenet169', 'efficientnet_b7', 'vgg16', 'vit', 'inception_v3', 'convnext_tiny', 'swin_t', 'mobilenet_v2'],
-                        help='选择要测试的模型')
+    parser.add_argument('--model', type=str, default= 'resnet34+densenet169+efficientnet_b3+vgg16+vit+convnext_tiny+swin_t+mobilenet_v2', 
+                        help='选择要测试的模型，多个模型用+分隔，例如: resnet34+densenet169+vgg16')
     args = parser.parse_args()
     
-    model, acc, prec, rec, f1 = test_model(args.model)
-    print(f'\n{args.model}测试完成，评估指标已输出，混淆矩阵和各类别准确率图表已保存。')
+    # 解析模型名称
+    models_to_test = args.model.split('+')
+    
+    # 验证模型名称
+    supported_models = ['resnet34', 'densenet169', 'efficientnet_b3', 'vgg16', 'vit', 'convnext_tiny', 'swin_t', 'mobilenet_v2']
+    for model_name in models_to_test:
+        if model_name not in supported_models:
+            raise ValueError(f"不支持的模型: {model_name}")
+    
+    # 存储所有模型的评估结果
+    results = {}
+    
+    # 测试每个模型
+    for model_name in models_to_test:
+        model, acc, prec, rec, f1 = test_model(model_name)
+        results[model_name] = {
+            'accuracy': acc,
+            'precision': prec,
+            'recall': rec,
+            'f1': f1
+        }
+    
+    # 生成所有模型评估结果对比图
+    # 创建figs目录保存图表
+    figs_dir = 'figs'
+    os.makedirs(figs_dir, exist_ok=True)
+    
+    # 准备数据
+    model_names = list(results.keys())
+    accuracies = [results[model]['accuracy'] for model in model_names]
+    precisions = [results[model]['precision'] for model in model_names]
+    recalls = [results[model]['recall'] for model in model_names]
+    f1_scores = [results[model]['f1'] for model in model_names]
+    
+    # 绘制模型对比图
+    x = np.arange(len(model_names))
+    width = 0.2
+    
+    fig, ax = plt.subplots(figsize=(12, 8))
+    rects1 = ax.bar(x - 1.5*width, accuracies, width, label='Accuracy')
+    rects2 = ax.bar(x - 0.5*width, precisions, width, label='Precision')
+    rects3 = ax.bar(x + 0.5*width, recalls, width, label='Recall')
+    rects4 = ax.bar(x + 1.5*width, f1_scores, width, label='F1 Score')
+    
+    # 添加数值标签
+    def add_value_labels(rects):
+        for rect in rects:
+            height = rect.get_height()
+            ax.annotate(f'{height:.3f}',
+                        xy=(rect.get_x() + rect.get_width() / 2, height),
+                        xytext=(0, 3),
+                        textcoords="offset points",
+                        ha='center', va='bottom')
+    
+    add_value_labels(rects1)
+    add_value_labels(rects2)
+    add_value_labels(rects3)
+    add_value_labels(rects4)
+    
+    # 设置图表属性
+    ax.set_xlabel('Models')
+    ax.set_ylabel('Scores')
+    ax.set_title('Model Performance Comparison')
+    ax.set_xticks(x)
+    ax.set_xticklabels(model_names)
+    ax.legend()
+    ax.set_ylim(0, 1)
+    
+    # 保存图表
+    plt.tight_layout()
+    plt.savefig(f'figs/model_comparison.png', dpi=300, bbox_inches='tight')
+    plt.close()  # 关闭图形以释放内存
