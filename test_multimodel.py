@@ -5,7 +5,7 @@ from torchvision import models, transforms
 from torchvision.models import (
     ResNet34_Weights, ResNet50_Weights, DenseNet169_Weights,
     EfficientNet_B3_Weights, EfficientNet_B4_Weights, VGG16_Weights,
-    ViT_B_16_Weights, ConvNeXt_Tiny_Weights, Swin_T_Weights, MobileNet_V2_Weights,
+    ConvNeXt_Tiny_Weights, MobileNet_V2_Weights,
     ResNeXt50_32X4D_Weights
 )
 from PIL import Image
@@ -56,21 +56,11 @@ def get_model(model_name, num_classes):
         model = models.vgg16(weights=weights)
         num_ftrs = model.classifier[6].in_features
         model.classifier[6] = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'vit':
-        weights = ViT_B_16_Weights.IMAGENET1K_V1
-        model = models.vit_b_16(weights=weights)
-        num_ftrs = model.heads.head.in_features
-        model.heads.head = nn.Linear(num_ftrs, num_classes)
     elif model_name == 'convnext_tiny':
         weights = ConvNeXt_Tiny_Weights.IMAGENET1K_V1
         model = models.convnext_tiny(weights=weights)
         num_ftrs = model.classifier[2].in_features
         model.classifier[2] = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'swin_t':
-        weights = Swin_T_Weights.IMAGENET1K_V1
-        model = models.swin_t(weights=weights)
-        num_ftrs = model.head.in_features
-        model.head = nn.Linear(num_ftrs, num_classes)
     elif model_name == 'mobilenet_v2':
         weights = MobileNet_V2_Weights.IMAGENET1K_V2
         model = models.mobilenet_v2(weights=weights)
@@ -206,7 +196,7 @@ def test_model(model_name='resnet34'):
 def main():
     parser = argparse.ArgumentParser(description='测试训练好的模型')
     parser.add_argument('--models', type=str,
-                        default='resnet34+resnet50+resnext50+densenet169+efficientnet_b3+efficientnet_b4+vgg16+vit+convnext_tiny+swin_t+mobilenet_v2',
+                        default='resnet34+resnet50+resnext50+densenet169+efficientnet_b3+efficientnet_b4+vgg16+convnext_tiny+mobilenet_v2',
                         help='要测试的模型，多个模型用+分隔')
     args = parser.parse_args()
 
@@ -215,7 +205,7 @@ def main():
 
     # 验证模型名称
     supported_models = ['resnet34', 'resnet50', 'resnext50', 'densenet169', 'efficientnet_b3', 'efficientnet_b4', 'vgg16',
-                       'vit', 'convnext_tiny', 'swin_t', 'mobilenet_v2']
+                       'convnext_tiny', 'mobilenet_v2']
 
     for model_name in model_names:
         if model_name not in supported_models:

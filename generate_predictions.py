@@ -5,7 +5,7 @@ from torchvision import transforms
 from torchvision.models import (
     ResNet34_Weights, ResNet50_Weights, DenseNet169_Weights,
     EfficientNet_B3_Weights, EfficientNet_B4_Weights, VGG16_Weights,
-    ViT_B_16_Weights, ConvNeXt_Tiny_Weights, Swin_T_Weights, MobileNet_V2_Weights,
+    ConvNeXt_Tiny_Weights, MobileNet_V2_Weights,
     ResNeXt50_32X4D_Weights
 )
 from torchvision import models
@@ -54,21 +54,11 @@ def get_model(model_name, num_classes):
         model = models.vgg16(weights=weights)
         num_ftrs = model.classifier[6].in_features
         model.classifier[6] = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'vit':
-        weights = ViT_B_16_Weights.IMAGENET1K_V1
-        model = models.vit_b_16(weights=weights)
-        num_ftrs = model.heads.head.in_features
-        model.heads.head = nn.Linear(num_ftrs, num_classes)
     elif model_name == 'convnext_tiny':
         weights = ConvNeXt_Tiny_Weights.IMAGENET1K_V1
         model = models.convnext_tiny(weights=weights)
         num_ftrs = model.classifier[2].in_features
         model.classifier[2] = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'swin_t':
-        weights = Swin_T_Weights.IMAGENET1K_V1
-        model = models.swin_t(weights=weights)
-        num_ftrs = model.head.in_features
-        model.head = nn.Linear(num_ftrs, num_classes)
     elif model_name == 'mobilenet_v2':
         weights = MobileNet_V2_Weights.IMAGENET1K_V2
         model = models.mobilenet_v2(weights=weights)
@@ -121,7 +111,7 @@ def generate_predictions(model, dataloader, model_name, subset_name, device, cla
 def main():
     parser = argparse.ArgumentParser(description='使用训练好的模型生成预测结果')
     parser.add_argument('--models', type=str,
-                        default='resnet34+resnet50+resnext50+densenet169+efficientnet_b3+efficientnet_b4+vgg16+vit+convnext_tiny+swin_t+mobilenet_v2',
+                        default='resnet34+resnet50+resnext50+densenet169+efficientnet_b3+efficientnet_b4+vgg16+convnext_tiny+mobilenet_v2',
                         help='要生成预测的模型，用+分隔')
     parser.add_argument('--subsets', type=str,
                         default='val-ensemble+test',
@@ -134,7 +124,7 @@ def main():
 
     # 支持的模型
     supported_models = ['resnet34', 'resnet50', 'resnext50', 'densenet169', 'efficientnet_b3', 'efficientnet_b4', 'vgg16',
-                       'vit', 'convnext_tiny', 'swin_t', 'mobilenet_v2']
+                       'convnext_tiny', 'mobilenet_v2']
 
     # 检查模型权重文件
     available_models = []

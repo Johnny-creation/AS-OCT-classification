@@ -69,21 +69,11 @@ def get_model(model_name, num_classes):
         model = models.vgg16(weights=weights)
         num_ftrs = model.classifier[6].in_features
         model.classifier[6] = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'vit':
-        weights = ViT_B_16_Weights.IMAGENET1K_V1
-        model = models.vit_b_16(weights=weights)
-        num_ftrs = model.heads.head.in_features
-        model.heads.head = nn.Linear(num_ftrs, num_classes)
     elif model_name == 'convnext_tiny':
         weights = ConvNeXt_Tiny_Weights.IMAGENET1K_V1
         model = models.convnext_tiny(weights=weights)
         num_ftrs = model.classifier[2].in_features
         model.classifier[2] = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'swin_t':
-        weights = Swin_T_Weights.IMAGENET1K_V1
-        model = models.swin_t(weights=weights)
-        num_ftrs = model.head.in_features
-        model.head = nn.Linear(num_ftrs, num_classes)
     elif model_name == 'mobilenet_v2':
         weights = MobileNet_V2_Weights.IMAGENET1K_V2
         model = models.mobilenet_v2(weights=weights)
@@ -130,7 +120,13 @@ class MeanUnweighted(AbstractEnsemble):
         pass  # 不需要训练
 
     def prediction(self, data):
-        return np.mean(data, axis=0)
+        n_models = data.shape[1] // self.n_classes
+        avg_probs = np.zeros((data.shape[0], self.n_classes))
+        for i in range(n_models):
+            start_idx = i * self.n_classes
+            end_idx = (i + 1) * self.n_classes
+            avg_probs += data[:, start_idx:end_idx]
+        return avg_probs / n_models
 
     def dump(self, path):
         with open(path, 'wb') as f:
@@ -566,7 +562,7 @@ def plot_ensemble_results(all_results, class_names, output_dir="figs"):
 def main():
     parser = argparse.ArgumentParser(description='高级集成学习系统')
     parser.add_argument('--models', type=str,
-                        default='resnet34+resnet50+resnext50+densenet169+efficientnet_b3+efficientnet_b4+vgg16+vit+convnext_tiny+swin_t+mobilenet_v2',
+                        default='resnet34+resnet50+resnext50+densenet169+efficientnet_b3+efficientnet_b4+vgg16+convnext_tiny+mobilenet_v2',
                         help='参与集成的模型名称，用+分隔')
     parser.add_argument('--ensemble_methods', type=str,
                         default='all',

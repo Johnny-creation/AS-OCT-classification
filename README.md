@@ -122,7 +122,7 @@ python train_multimodel.py --batch_size 64 --epochs 50 --lr 0.0001 --patience 10
 ```
 
 **Supported Models:**
-`resnet34` | `resnet50` | `resnext50` | `densenet169` | `efficientnet_b3` | `efficientnet_b4` | `vgg16` | `vit` | `convnext_tiny` | `swin_t` | `mobilenet_v2`
+`resnet34` | `resnet50` | `resnext50` | `densenet169` | `efficientnet_b3` | `efficientnet_b4` | `vgg16` | `convnext_tiny` | `mobilenet_v2`
 
 ### Step 3: Model Evaluation
 

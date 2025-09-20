@@ -7,6 +7,7 @@ weights/
 
 # Results and outputs
 results/
+figs/
 
 # Logs and temporary files
 *.log
