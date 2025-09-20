@@ -1,5 +1,27 @@
+# Data directories
 data/
 dataset/
 
+# Model weights (too large for git)
 weights/
-figs/
+
+# Results and outputs
+results/
+
+# Logs and temporary files
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# IDE files
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
