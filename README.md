@@ -9,7 +9,7 @@ A comprehensive deep learning framework for **Anterior Segment Optical Coherence
 ## 🚀 Features
 
 - **🔒 Data Leakage Prevention**: Patient-level (subject-level) data splitting strategy
-- **🧠 Multi-Model Architecture**: Support for 11 state-of-the-art deep learning models
+- **🧠 Multi-Model Architecture**: Support for 9 state-of-the-art deep learning models
 - **🔬 Advanced Ensemble Learning**: 12 different ensemble methods including voting, averaging, and meta-learning
 - **📊 Comprehensive Evaluation**: Accuracy, Precision, Recall, F1-Score, AUC, and confusion matrices
 - **⚡ GPU Acceleration**: CUDA support for faster training and inference
@@ -27,16 +27,16 @@ A comprehensive deep learning framework for **Anterior Segment Optical Coherence
 ├── 📂 dataset/                 # Dataset split JSON files
 ├── 📂 weights/                 # Trained model weights
 ├── 📂 results/                 # All output results
-│   ├── 📄 predictions_*.json   # Model prediction files
+│   ├── 📂 predictions/         # Model prediction files
 │   ├── 📂 evaluation/          # Model evaluation results
 │   └── 📂 ensemble/            # Ensemble learning results
 │       ├── 📂 models/          # Trained ensemble models
 │       └── 📂 figures/         # Performance visualizations
 ├── 🐍 split.py                # Patient-level data splitting
 ├── 🐍 train_multimodel.py     # Multi-model training pipeline
+├── 🐍 generate_predictions.py # Prediction generation (inference)
 ├── 🐍 test_multimodel.py      # Model evaluation
 ├── 🐍 advanced_ensemble.py    # Ensemble learning system
-├── 🐍 generate_predictions.py # Prediction generation
 ├── 🐍 dataset_utils.py        # Dataset utilities
 └── 📄 requirements.txt        # Python dependencies
 ```
@@ -108,7 +108,7 @@ python split.py
 
 ### Step 2: Model Training
 
-Train multiple deep learning models with automatic hyperparameter optimization:
+Train multiple deep learning models:
 
 ```bash
 # Train all supported models (default)
@@ -124,7 +124,19 @@ python train_multimodel.py --batch_size 64 --epochs 50 --lr 0.0001 --patience 10
 **Supported Models:**
 `resnet34` | `resnet50` | `resnext50` | `densenet169` | `efficientnet_b3` | `efficientnet_b4` | `vgg16` | `convnext_tiny` | `mobilenet_v2`
 
-### Step 3: Model Evaluation
+### Step 3: Generate Predictions
+
+Generate predictions for ensemble learning:
+
+```bash
+# Generate predictions for all models
+python generate_predictions.py
+
+# Generate predictions for specific models and datasets
+python generate_predictions.py --models resnet34+densenet169+vgg16 --subsets val-ensemble+test
+```
+
+### Step 4: Model Evaluation
 
 Evaluate individual model performance:
 
@@ -136,7 +148,7 @@ python test_multimodel.py
 python test_multimodel.py --models resnet34+densenet169+vgg16
 ```
 
-### Step 4: Ensemble Learning
+### Step 5: Ensemble Learning
 
 Deploy advanced ensemble methods for enhanced performance:
 
@@ -147,9 +159,6 @@ python advanced_ensemble.py
 # Custom ensemble configuration
 python advanced_ensemble.py --models resnet34+densenet169+vgg16 \
                            --ensemble_methods LogisticRegression+MeanWeighted
-
-# Specific ensemble methods only
-python advanced_ensemble.py --ensemble_methods LogisticRegression+DecisionTree+KNeighbors
 ```
 
 ## 🧬 Ensemble Learning Methods
@@ -182,16 +191,17 @@ Our framework implements **12 sophisticated ensemble techniques** organized into
 
 ## 📈 Output & Results
 
-### 🏋️ Training Phase
+### 🏋️ Training & Prediction Phase
 ```
 weights/
 ├── best_resnet34_model.pth         # Trained model weights
 ├── best_densenet169_model.pth
 └── ...
 
-results/
-├── predictions_resnet34_test_best.json    # Model predictions for ensemble
-├── predictions_densenet169_val-ensemble_best.json
+results/predictions/
+├── predictions_resnet34_test_best.json              # Model predictions for test set
+├── predictions_resnet34_val-ensemble_best.json      # Model predictions for ensemble training
+├── predictions_densenet169_test_best.json
 └── ...
 ```
 
@@ -219,38 +229,15 @@ results/ensemble/
 ## 🔧 Key Technical Features
 
 ### 🔒 Patient-Level Data Splitting
-Prevents data leakage by ensuring images from the same patient never appear in both training and test sets:
+Prevents data leakage by ensuring images from the same patient never appear in both training and test sets. The system automatically handles `_OS` and `_OD` suffixes to extract patient IDs.
 
-```python
-def extract_patient_id(folder_name):
-    """Extract patient ID from folder name"""
-    if folder_name.endswith('OS') or folder_name.endswith('OD'):
-        return folder_name[:-2]  # Remove eye identifier
-    return folder_name
-```
+### 💾 Modular Architecture
+- **Training**: Focus on model optimization
+- **Prediction Generation**: Separate inference step for flexibility
+- **Ensemble Learning**: Unified framework supporting 12 different methods
 
-### 💾 Automated Prediction Generation
-Seamlessly generates ensemble-ready predictions during training:
-
-```python
-def generate_predictions(model, dataloader, model_name, subset_name, device, class_names):
-    """Generate and save model predictions in JSON format"""
-```
-
-### 🏗️ Extensible Ensemble Framework
-Unified interface based on abstract base classes:
-
-```python
-class AbstractEnsemble(ABC):
-    @abstractmethod
-    def training(self, train_x, train_y): pass
-    @abstractmethod
-    def prediction(self, data): pass
-    @abstractmethod
-    def dump(self, path): pass
-    @abstractmethod
-    def load(self, path): pass
-```
+### 🏗️ Extensible Design
+All ensemble methods implement a common interface, making it easy to add new ensemble techniques or modify existing ones.
 
 ## 📊 Evaluation Metrics
 
@@ -282,13 +269,16 @@ Our comprehensive evaluation includes:
 # 1. Prepare patient-level data splits
 python split.py
 
-# 2. Train multiple architectures (recommended subset)
+# 2. Train multiple architectures
 python train_multimodel.py --model resnet34 densenet169 vgg16 --epochs 30
 
-# 3. Evaluate individual models
+# 3. Generate predictions for ensemble learning
+python generate_predictions.py --models resnet34+densenet169+vgg16
+
+# 4. Evaluate individual models
 python test_multimodel.py --models resnet34+densenet169+vgg16
 
-# 4. Deploy ensemble learning
+# 5. Deploy ensemble learning
 python advanced_ensemble.py --models resnet34+densenet169+vgg16
 ```
 

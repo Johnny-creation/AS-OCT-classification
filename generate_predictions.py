@@ -96,11 +96,11 @@ def generate_predictions(model, dataloader, model_name, subset_name, device, cla
         "subset": subset_name
     }
 
-    # 创建results目录
-    os.makedirs("results", exist_ok=True)
+    # 创建results/predictions目录
+    os.makedirs("results/predictions", exist_ok=True)
 
     # 保存预测结果
-    output_file = f"results/predictions_{model_name}_{subset_name}_best.json"
+    output_file = f"results/predictions/predictions_{model_name}_{subset_name}_best.json"
     with open(output_file, 'w') as f:
         json.dump(result, f, indent=2)
 

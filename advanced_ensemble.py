@@ -445,7 +445,7 @@ ENSEMBLE_METHODS = {
 }
 
 
-def load_model_predictions(model_names, subset_name, results_dir="results"):
+def load_model_predictions(model_names, subset_name, results_dir="results/predictions"):
     """加载模型预测结果"""
     all_predictions = {}
 
