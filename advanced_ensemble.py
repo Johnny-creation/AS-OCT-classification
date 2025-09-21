@@ -3,8 +3,8 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torchvision import models, transforms
 from torchvision.models import (
-    ResNet34_Weights, ResNet50_Weights, DenseNet169_Weights,
-    EfficientNet_B3_Weights, EfficientNet_B4_Weights, VGG16_Weights,
+    ResNet50_Weights, DenseNet169_Weights,
+    EfficientNet_B4_Weights, VGG16_Weights,
     ViT_B_16_Weights, ConvNeXt_Tiny_Weights, Swin_T_Weights, MobileNet_V2_Weights,
     ResNeXt50_32X4D_Weights
 )
@@ -34,12 +34,7 @@ from dataset_utils import ASOCTDatasetJSON
 
 def get_model(model_name, num_classes):
     """根据模型名称获取相应的模型"""
-    if model_name == 'resnet34':
-        weights = ResNet34_Weights.IMAGENET1K_V1
-        model = models.resnet34(weights=weights)
-        num_ftrs = model.fc.in_features
-        model.fc = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'resnet50':
+    if model_name == 'resnet50':
         weights = ResNet50_Weights.IMAGENET1K_V2
         model = models.resnet50(weights=weights)
         num_ftrs = model.fc.in_features
@@ -53,11 +48,6 @@ def get_model(model_name, num_classes):
         weights = DenseNet169_Weights.IMAGENET1K_V1
         model = models.densenet169(weights=weights)
         num_ftrs = model.classifier.in_features
-        model.classifier = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'efficientnet_b3':
-        weights = EfficientNet_B3_Weights.IMAGENET1K_V1
-        model = models.efficientnet_b3(weights=weights)
-        num_ftrs = model.classifier[1].in_features
         model.classifier = nn.Linear(num_ftrs, num_classes)
     elif model_name == 'efficientnet_b4':
         weights = EfficientNet_B4_Weights.IMAGENET1K_V1
@@ -562,7 +552,7 @@ def plot_ensemble_results(all_results, class_names, output_dir="figs"):
 def main():
     parser = argparse.ArgumentParser(description='高级集成学习系统')
     parser.add_argument('--models', type=str,
-                        default='resnet34+resnet50+resnext50+densenet169+efficientnet_b3+efficientnet_b4+vgg16+convnext_tiny+mobilenet_v2',
+                        default='resnet50+resnext50+densenet169+efficientnet_b4+vgg16+convnext_tiny+mobilenet_v2',
                         help='参与集成的模型名称，用+分隔')
     parser.add_argument('--ensemble_methods', type=str,
                         default='all',

@@ -1,6 +1,7 @@
 # Data directories
 data/
 dataset/
+sample/
 
 # Model weights (too large for git)
 weights/

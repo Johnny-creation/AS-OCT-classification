@@ -9,8 +9,9 @@ A comprehensive deep learning framework for **Anterior Segment Optical Coherence
 ## 🚀 Features
 
 - **🔒 Data Leakage Prevention**: Patient-level (subject-level) data splitting strategy
-- **🧠 Multi-Model Architecture**: Support for 9 state-of-the-art deep learning models
+- **🧠 Multi-Model Architecture**: Support for 7 state-of-the-art deep learning models
 - **🔬 Advanced Ensemble Learning**: 12 different ensemble methods including voting, averaging, and meta-learning
+- **🎯 Model Interpretability**: GradCAM-based attention heatmaps for visual model interpretation
 - **📊 Comprehensive Evaluation**: Accuracy, Precision, Recall, F1-Score, AUC, and confusion matrices
 - **⚡ GPU Acceleration**: CUDA support for faster training and inference
 - **📁 Organized Results**: Structured output directory for easy result management
@@ -29,14 +30,16 @@ A comprehensive deep learning framework for **Anterior Segment Optical Coherence
 ├── 📂 results/                 # All output results
 │   ├── 📂 predictions/         # Model prediction files
 │   ├── 📂 evaluation/          # Model evaluation results
-│   └── 📂 ensemble/            # Ensemble learning results
-│       ├── 📂 models/          # Trained ensemble models
-│       └── 📂 figures/         # Performance visualizations
+│   ├── 📂 ensemble/            # Ensemble learning results
+│   │   ├── 📂 models/          # Trained ensemble models
+│   │   └── 📂 figures/         # Performance visualizations
+│   └── 📂 heatmaps/            # Model attention heatmaps
 ├── 🐍 split.py                # Patient-level data splitting
 ├── 🐍 train_multimodel.py     # Multi-model training pipeline
 ├── 🐍 generate_predictions.py # Prediction generation (inference)
 ├── 🐍 test_multimodel.py      # Model evaluation
 ├── 🐍 advanced_ensemble.py    # Ensemble learning system
+├── 🐍 heatmap_visualization.py # Model attention visualization
 ├── 🐍 dataset_utils.py        # Dataset utilities
 └── 📄 requirements.txt        # Python dependencies
 ```
@@ -70,6 +73,8 @@ numpy>=1.21.0
 pandas>=1.3.0
 Pillow>=8.3.0
 tqdm>=4.62.0
+grad-cam>=1.5.0
+opencv-python>=4.8.0
 ```
 
 ## 📊 Dataset Structure
@@ -115,14 +120,14 @@ Train multiple deep learning models:
 python train_multimodel.py
 
 # Train specific models
-python train_multimodel.py --model resnet34 densenet169 vgg16
+python train_multimodel.py --model resnet50 densenet169 vgg16
 
 # Custom training parameters
 python train_multimodel.py --batch_size 64 --epochs 50 --lr 0.0001 --patience 10
 ```
 
 **Supported Models:**
-`resnet34` | `resnet50` | `resnext50` | `densenet169` | `efficientnet_b3` | `efficientnet_b4` | `vgg16` | `convnext_tiny` | `mobilenet_v2`
+`resnet50` | `resnext50` | `densenet169` | `efficientnet_b4` | `vgg16` | `convnext_tiny` | `mobilenet_v2`
 
 ### Step 3: Generate Predictions
 
@@ -133,7 +138,7 @@ Generate predictions for ensemble learning:
 python generate_predictions.py
 
 # Generate predictions for specific models and datasets
-python generate_predictions.py --models resnet34+densenet169+vgg16 --subsets val-ensemble+test
+python generate_predictions.py --models resnet50+densenet169+vgg16 --subsets val-ensemble+test
 ```
 
 ### Step 4: Model Evaluation
@@ -145,7 +150,7 @@ Evaluate individual model performance:
 python test_multimodel.py
 
 # Evaluate specific models
-python test_multimodel.py --models resnet34+densenet169+vgg16
+python test_multimodel.py --models resnet50+densenet169+vgg16
 ```
 
 ### Step 5: Ensemble Learning
@@ -157,8 +162,22 @@ Deploy advanced ensemble methods for enhanced performance:
 python advanced_ensemble.py
 
 # Custom ensemble configuration
-python advanced_ensemble.py --models resnet34+densenet169+vgg16 \
+python advanced_ensemble.py --models resnet50+densenet169+vgg16 \
                            --ensemble_methods LogisticRegression+MeanWeighted
+```
+
+### Step 6: Model Attention Visualization
+
+Generate heatmaps to visualize model attention patterns:
+
+```bash
+# Analyze all sample images with default models
+python heatmap_visualization.py
+
+# Analyze specific image with custom models
+python heatmap_visualization.py --image_path path/to/image.jpg \
+                               --models resnet50+densenet169+efficientnet_b4 \
+                               --ensemble_method MeanWeighted
 ```
 
 ## 🧬 Ensemble Learning Methods
@@ -194,13 +213,13 @@ Our framework implements **12 sophisticated ensemble techniques** organized into
 ### 🏋️ Training & Prediction Phase
 ```
 weights/
-├── best_resnet34_model.pth         # Trained model weights
+├── best_resnet50_model.pth         # Trained model weights
 ├── best_densenet169_model.pth
 └── ...
 
 results/predictions/
-├── predictions_resnet34_test_best.json              # Model predictions for test set
-├── predictions_resnet34_val-ensemble_best.json      # Model predictions for ensemble training
+├── predictions_resnet50_test_best.json              # Model predictions for test set
+├── predictions_resnet50_val-ensemble_best.json      # Model predictions for ensemble training
 ├── predictions_densenet169_test_best.json
 └── ...
 ```
@@ -208,7 +227,7 @@ results/predictions/
 ### 🧪 Evaluation Phase
 ```
 results/evaluation/
-├── resnet34_confusion_matrix.png           # Per-model confusion matrices
+├── resnet50_confusion_matrix.png           # Per-model confusion matrices
 ├── densenet169_class_accuracy.png          # Class-wise accuracy plots
 ├── model_comparison.png                    # Performance comparison chart
 └── evaluation_results.json                 # Comprehensive metrics summary
@@ -226,6 +245,19 @@ results/ensemble/
     └── ensemble_comparison.png             # Ensemble performance visualization
 ```
 
+### 🎯 Model Attention Visualization
+```
+results/heatmaps/
+├── cataract/
+│   ├── resnet50_heatmap.png                # ResNet50 attention heatmap
+│   ├── densenet169_heatmap.png             # DenseNet169 attention heatmap
+│   └── analysis_summary.json               # Prediction results with ensemble
+├── normal/
+├── pacg/
+├── pacg_cataract/
+└── batch_analysis_summary.json             # Comprehensive heatmap analysis
+```
+
 ## 🔧 Key Technical Features
 
 ### 🔒 Patient-Level Data Splitting
@@ -235,6 +267,10 @@ Prevents data leakage by ensuring images from the same patient never appear in b
 - **Training**: Focus on model optimization
 - **Prediction Generation**: Separate inference step for flexibility
 - **Ensemble Learning**: Unified framework supporting 12 different methods
+- **Attention Visualization**: GradCAM-based heatmap generation for model interpretability
+
+### 🔍 Model Interpretability
+Generate attention heatmaps to understand what regions of the image each model focuses on during classification, providing insights into model decision-making processes.
 
 ### 🏗️ Extensible Design
 All ensemble methods implement a common interface, making it easy to add new ensemble techniques or modify existing ones.
@@ -263,10 +299,10 @@ Our comprehensive evaluation includes:
 | **AUC** | 0.956-0.969 | 0.908-0.974 | ✅ Robust classification |
 
 **🏆 Best Performers:**
-- **Single Model**: ResNet34 (88.81% accuracy, 0.957 AUC)
+- **Single Model**: ResNet50 (88.56% accuracy, 0.968 AUC)
 - **Ensemble**: LogisticRegression (89.16% accuracy, 0.974 AUC)
 
-> **💡 Pro Tip**: LogisticRegression ensemble achieves the best performance, while MeanWeighted provides stable results with minimal complexity.
+> **💡 Pro Tip**: LogisticRegression ensemble achieves the best performance, while MeanWeighted provides stable results with minimal complexity. Use attention heatmaps to understand model focus areas and improve interpretability.
 
 
 ## 🚀 Complete Workflow Example
@@ -276,16 +312,19 @@ Our comprehensive evaluation includes:
 python split.py
 
 # 2. Train multiple architectures
-python train_multimodel.py --model resnet34 densenet169 vgg16 --epochs 30
+python train_multimodel.py --model resnet50 densenet169 vgg16 --epochs 30
 
 # 3. Generate predictions for ensemble learning
-python generate_predictions.py --models resnet34+densenet169+vgg16
+python generate_predictions.py --models resnet50+densenet169+vgg16
 
 # 4. Evaluate individual models
-python test_multimodel.py --models resnet34+densenet169+vgg16
+python test_multimodel.py --models resnet50+densenet169+vgg16
 
 # 5. Deploy ensemble learning
-python advanced_ensemble.py --models resnet34+densenet169+vgg16
+python advanced_ensemble.py --models resnet50+densenet169+vgg16
+
+# 6. Generate attention heatmaps
+python heatmap_visualization.py --models resnet50+densenet169+vgg16
 ```
 
 ## 📝 Citation
