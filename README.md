@@ -257,8 +257,8 @@ Our comprehensive evaluation includes:
 | Metric | Single Model | Ensemble | Improvement |
 |--------|--------------|----------|-------------|
 | **Accuracy** | 83.7-88.1% | 86.4-89.2% | +1.1-3.5% |
+| **Recall** | 0.837-0.881 | 0.864-0.892 | +0.027-0.055 |
 | **F1-Score** | 0.828-0.873 | 0.856-0.884 | +0.011-0.028 |
-| **AUC** | N/A | 0.908-0.974 | ✅ Excellent discrimination |
 | **Stability** | Higher variance | Lower variance | ✅ More reliable |
 
 **🏆 Best Performers:**
