@@ -256,14 +256,15 @@ Our comprehensive evaluation includes:
 
 | Metric | Single Model | Ensemble | Improvement |
 |--------|--------------|----------|-------------|
-| **Accuracy** | 83.7-88.1% | 86.4-89.2% | +1.1-3.5% |
-| **Recall** | 0.837-0.881 | 0.864-0.892 | +0.027-0.055 |
-| **F1-Score** | 0.828-0.873 | 0.856-0.884 | +0.011-0.028 |
-| **Stability** | Higher variance | Lower variance | ✅ More reliable |
+| **Accuracy** | 84.3-88.8% | 86.4-89.2% | +1.1-2.9% |
+| **Precision** | 0.831-0.882 | 0.857-0.888 | +0.026-0.057 |
+| **Recall** | 0.843-0.889 | 0.864-0.892 | +0.021-0.049 |
+| **F1-Score** | 0.836-0.882 | 0.856-0.884 | +0.020-0.048 |
+| **AUC** | 0.956-0.969 | 0.908-0.974 | ✅ Robust classification |
 
 **🏆 Best Performers:**
-- **Single Model**: ResNeXt50 (88.06% accuracy)
-- **Ensemble**: LogisticRegression (89.16% accuracy)
+- **Single Model**: ResNet34 (88.81% accuracy, 0.957 AUC)
+- **Ensemble**: LogisticRegression (89.16% accuracy, 0.974 AUC)
 
 > **💡 Pro Tip**: LogisticRegression ensemble achieves the best performance, while MeanWeighted provides stable results with minimal complexity.
 

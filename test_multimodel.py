@@ -12,7 +12,8 @@ from PIL import Image
 import os
 import json
 import numpy as np
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+from sklearn.preprocessing import label_binarize
 import matplotlib.pyplot as plt
 import seaborn as sns
 import argparse
@@ -109,9 +110,10 @@ def test_model(model_name='resnet34'):
     model = model.to(device)
     model.eval()
 
-    # 存储预测结果和真实标签
+    # 存储预测结果、概率和真实标签
     all_preds = []
     all_labels = []
+    all_probs = []
 
     # 测试过程
     with torch.no_grad():
@@ -120,14 +122,17 @@ def test_model(model_name='resnet34'):
             labels = labels.to(device)
 
             outputs = model(inputs)
+            probs = torch.nn.functional.softmax(outputs, dim=1)
             _, preds = torch.max(outputs, 1)
 
             all_preds.extend(preds.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
+            all_probs.extend(probs.cpu().numpy())
 
     # 转换为numpy数组
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
+    all_probs = np.array(all_probs)
 
     # 计算评价指标
     accuracy = accuracy_score(all_labels, all_preds)
@@ -135,12 +140,23 @@ def test_model(model_name='resnet34'):
     recall = recall_score(all_labels, all_preds, average='weighted')
     f1 = f1_score(all_labels, all_preds, average='weighted')
 
+    # 计算AUC (多分类使用one-vs-rest方式)
+    try:
+        if num_classes > 2:
+            y_bin = label_binarize(all_labels, classes=range(num_classes))
+            auc = roc_auc_score(y_bin, all_probs, average='weighted', multi_class='ovr')
+        else:
+            auc = roc_auc_score(all_labels, all_probs[:, 1])
+    except:
+        auc = 0.0
+
     # 打印评估指标
     print(f"\n{model_name.upper()} 模型评估结果:")
     print(f"准确率 (Accuracy): {accuracy:.4f}")
     print(f"精确率 (Precision): {precision:.4f}")
     print(f"召回率 (Recall): {recall:.4f}")
     print(f"F1分数: {f1:.4f}")
+    print(f"AUC: {auc:.4f}")
 
     # 生成混淆矩阵
     cm = confusion_matrix(all_labels, all_preds)
@@ -189,7 +205,8 @@ def test_model(model_name='resnet34'):
         'accuracy': accuracy,
         'precision': precision,
         'recall': recall,
-        'f1': f1
+        'f1': f1,
+        'auc': auc
     }
 
 
@@ -234,16 +251,18 @@ def main():
         precisions = [r['precision'] for r in all_results]
         recalls = [r['recall'] for r in all_results]
         f1_scores = [r['f1'] for r in all_results]
+        aucs = [r['auc'] for r in all_results]
 
         # 绘制模型对比图
         x = np.arange(len(models))
-        width = 0.2
+        width = 0.15
 
-        fig, ax = plt.subplots(figsize=(15, 8))
-        rects1 = ax.bar(x - 1.5*width, accuracies, width, label='Accuracy')
-        rects2 = ax.bar(x - 0.5*width, precisions, width, label='Precision')
-        rects3 = ax.bar(x + 0.5*width, recalls, width, label='Recall')
-        rects4 = ax.bar(x + 1.5*width, f1_scores, width, label='F1 Score')
+        fig, ax = plt.subplots(figsize=(18, 8))
+        rects1 = ax.bar(x - 2*width, accuracies, width, label='Accuracy')
+        rects2 = ax.bar(x - width, precisions, width, label='Precision')
+        rects3 = ax.bar(x, recalls, width, label='Recall')
+        rects4 = ax.bar(x + width, f1_scores, width, label='F1 Score')
+        rects5 = ax.bar(x + 2*width, aucs, width, label='AUC')
 
         # 添加数值标签
         def add_value_labels(rects):
@@ -259,6 +278,7 @@ def main():
         add_value_labels(rects2)
         add_value_labels(rects3)
         add_value_labels(rects4)
+        add_value_labels(rects5)
 
         # 设置图表属性
         ax.set_xlabel('Models')
