@@ -11,9 +11,6 @@ from torchvision.models import (
 )
 from PIL import Image
 import os
-import json
-import numpy as np
-from tqdm import tqdm
 import argparse
 import time
 from dataset_utils import ASOCTDatasetJSON
@@ -232,41 +229,6 @@ def train_model(model_names, batch_size=32, epochs=5, learning_rate=0.001, num_w
     
     return trained_models
 
-def generate_predictions(model, dataloader, model_name, subset_name, device, class_names):
-    """生成模型预测结果并保存为JSON格式"""
-    model.eval()
-    predictions = {}
-
-    with torch.no_grad():
-        for inputs, labels in tqdm(dataloader, desc=f"生成{model_name}预测结果"):
-            inputs = inputs.to(device)
-            outputs = model(inputs)
-            probs = torch.nn.functional.softmax(outputs, dim=1)
-
-            # 获取样本索引（这里使用batch内的索引）
-            batch_start = len(predictions)
-            for i in range(probs.size(0)):
-                sample_id = f"sample_{batch_start + i}"
-                predictions[sample_id] = probs[i].cpu().numpy().tolist()
-
-    # 创建预测结果字典
-    result = {
-        "predictions": predictions,
-        "legend": class_names,
-        "model": model_name,
-        "subset": subset_name
-    }
-
-    # 创建results目录
-    os.makedirs("results", exist_ok=True)
-
-    # 保存预测结果
-    output_file = f"results/predictions_{model_name}_{subset_name}_best.json"
-    with open(output_file, 'w') as f:
-        json.dump(result, f, indent=2)
-
-    print(f"预测结果已保存到: {output_file}")
-    return output_file
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='训练不同模型')
@@ -299,39 +261,4 @@ if __name__ == '__main__':
     )
 
     print(f'所有模型训练完成并已保存最佳权重')
-
-    # 生成集成学习所需的预测结果
-    print("\n开始生成集成学习所需的预测结果...")
-
-    # 数据集根目录
-    data_dir = r'./data'
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    # 数据预处理
-    data_transforms = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
-
-    # 为集成学习生成预测结果
-    ensemble_subsets = ['val-ensemble', 'test']
-
-    for subset_name in ensemble_subsets:
-        json_file = f'dataset/asoct.{subset_name}.json'
-        if not os.path.exists(json_file):
-            print(f"警告: {json_file} 不存在，跳过")
-            continue
-
-        # 创建数据集
-        dataset = ASOCTDatasetJSON(json_file, data_transforms)
-        dataloader = DataLoader(dataset, batch_size=32, shuffle=False, num_workers=4)
-        class_names = dataset.classes
-
-        print(f"\n为{subset_name}数据集生成预测结果:")
-        for model_name in args.model:
-            if model_name in models:
-                model = models[model_name]
-                generate_predictions(model, dataloader, model_name, subset_name, device, class_names)
-
-    print("\n预测结果生成完成！可以运行集成学习算法了。")
+    print("要生成预测结果，请运行: python generate_predictions.py")

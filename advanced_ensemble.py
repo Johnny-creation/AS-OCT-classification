@@ -460,8 +460,8 @@ def load_model_predictions(model_names, subset_name, results_dir="results"):
             data = json.load(f)
             predictions = data['predictions']
 
-            # 转换为numpy数组
-            pred_array = np.array([predictions[key] for key in sorted(predictions.keys())])
+            # 转换为numpy数组，按数字顺序排序键
+            pred_array = np.array([predictions[key] for key in sorted(predictions.keys(), key=lambda x: int(x.split('_')[1]))])
             all_predictions[model_name] = pred_array
 
     return all_predictions
@@ -602,7 +602,7 @@ def main():
     test_predictions = load_model_predictions(model_names, 'test')
 
     if len(val_predictions) == 0 or len(test_predictions) == 0:
-        print("错误: 未找到足够的预测结果文件。请先运行train_multimodel.py生成预测结果。")
+        print("错误: 未找到足够的预测结果文件。请先运行generate_predictions.py生成预测结果。")
         return
 
     # 准备集成数据
