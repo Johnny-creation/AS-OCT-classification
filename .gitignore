@@ -1,5 +1,7 @@
 # Data directories
 data/
+!examples/data/
+!examples/data/**
 dataset/
 sample/
 
