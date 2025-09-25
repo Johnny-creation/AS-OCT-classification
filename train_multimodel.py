@@ -1,254 +1,240 @@
+"""Training entry-point for multiple AS-OCT backbones."""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import time
+from copy import deepcopy
+from pathlib import Path
+from typing import Dict, Tuple
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-from torchvision import models, transforms
-from torchvision.models import (
-    ResNet50_Weights, DenseNet169_Weights,
-    EfficientNet_B4_Weights, VGG16_Weights,
-    ConvNeXt_Tiny_Weights, MobileNet_V2_Weights,
-    ResNeXt50_32X4D_Weights
-)
-from PIL import Image
-import os
-import argparse
-import time
+from torch.utils.data import DataLoader
+from torchvision import transforms
+
 from dataset_utils import ASOCTDatasetJSON
+from src.models import available_models, create_model
 
-def get_model(model_name, num_classes):
-    """根据模型名称获取相应的模型"""
-    if model_name == 'resnet50':
-        weights = ResNet50_Weights.IMAGENET1K_V2
-        model = models.resnet50(weights=weights)
-        num_ftrs = model.fc.in_features
-        model.fc = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'resnext50':
-        weights = ResNeXt50_32X4D_Weights.IMAGENET1K_V2
-        model = models.resnext50_32x4d(weights=weights)
-        num_ftrs = model.fc.in_features
-        model.fc = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'densenet169':
-        weights = DenseNet169_Weights.IMAGENET1K_V1
-        model = models.densenet169(weights=weights)
-        num_ftrs = model.classifier.in_features
-        model.classifier = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'efficientnet_b4':
-        weights = EfficientNet_B4_Weights.IMAGENET1K_V1
-        model = models.efficientnet_b4(weights=weights)
-        num_ftrs = model.classifier[1].in_features
-        model.classifier = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'vgg16':
-        weights = VGG16_Weights.IMAGENET1K_V1
-        model = models.vgg16(weights=weights)
-        num_ftrs = model.classifier[6].in_features
-        model.classifier[6] = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'convnext_tiny':
-        weights = ConvNeXt_Tiny_Weights.IMAGENET1K_V1
-        model = models.convnext_tiny(weights=weights)
-        num_ftrs = model.classifier[2].in_features
-        model.classifier[2] = nn.Linear(num_ftrs, num_classes)
-    elif model_name == 'mobilenet_v2':
-        weights = MobileNet_V2_Weights.IMAGENET1K_V2
-        model = models.mobilenet_v2(weights=weights)
-        num_ftrs = model.classifier[1].in_features
-        model.classifier[1] = nn.Linear(num_ftrs, num_classes)
-    else:
-        raise ValueError(f"不支持的模型: {model_name}")
 
-    return model
+LOGGER = logging.getLogger("train_multimodel")
 
-def train_model(model_names, batch_size=32, epochs=5, learning_rate=0.001, num_workers=4, 
-                patience=7, min_delta=0.001):
-    # 数据集根目录
-    data_dir = r'./data'
-    
-    # 创建weights文件夹
-    weights_dir = 'weights'
-    os.makedirs(weights_dir, exist_ok=True)
-    
-    # 使用224x224的输入
-    data_transforms = {
-        'train': transforms.Compose([
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Train one or more classification backbones on AS-OCT datasets",
+    )
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        default=["resnet50", "densenet169", "efficientnet_b4"],
+        help="Model identifiers to train. Available: %(choices)s" % {"choices": ", ".join(available_models())},
+    )
+    parser.add_argument(
+        "--train-json",
+        default="dataset/asoct.train-model.json",
+        help="Path to the training JSON manifest",
+    )
+    parser.add_argument(
+        "--val-json",
+        default="dataset/asoct.val-model.json",
+        help="Path to the validation JSON manifest",
+    )
+    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--epochs", type=int, default=40)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--num-workers", type=int, default=4)
+    parser.add_argument("--patience", type=int, default=7, help="Early stopping patience (validation epochs)")
+    parser.add_argument("--min-delta", type=float, default=1e-3, help="Minimum improvement to reset patience")
+    parser.add_argument(
+        "--weights-dir",
+        default="weights",
+        help="Directory where fine-tuned weights are stored",
+    )
+    parser.add_argument(
+        "--no-pretrained",
+        action="store_true",
+        help="Do not initialise backbones with ImageNet weights",
+    )
+    parser.add_argument(
+        "--device",
+        default="cuda" if torch.cuda.is_available() else "cpu",
+        help="Device string passed to torch.device",
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Logging verbosity",
+    )
+    return parser.parse_args()
+
+
+def _build_transforms() -> transforms.Compose:
+    return transforms.Compose(
+        [
             transforms.Resize((224, 224)),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ]),
-        'val': transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ]),
-    }
-    
-    # 创建数据集
-    image_datasets = {
-        'train': ASOCTDatasetJSON('dataset/asoct.train-model.json', data_transforms['train']),
-        'val': ASOCTDatasetJSON('dataset/asoct.val-model.json', data_transforms['val'])
-    }
-    
-    # 创建数据加载器
-    dataloaders = {
-        'train': DataLoader(image_datasets['train'], batch_size=batch_size, shuffle=True, num_workers=num_workers),
-        'val': DataLoader(image_datasets['val'], batch_size=batch_size, shuffle=False, num_workers=num_workers)
-    }
-    
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
-    class_names = image_datasets['train'].classes
-    num_classes = len(class_names)
-    
-    print(f"类别数: {num_classes}")
-    print(f"类别名称: {class_names}")
-    print(f"训练集大小: {dataset_sizes['train']}")
-    print(f"验证集大小: {dataset_sizes['val']}")
-    
-    # 使用GPU如果可用
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print(f"使用设备: {device}")
-    
-    # 为每个模型训练
-    trained_models = {}
-    for model_name in model_names:
-        print(f"\n开始训练模型: {model_name}")
-        
-        # 获取模型
-        model = get_model(model_name, num_classes)
-        
-        # 将模型移动到设备
-        model = model.to(device)
-        
-        # 定义损失函数和优化器
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-        
-        # 学习率调度器
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
-        
-        # 训练参数
-        num_epochs = epochs
-        best_acc = 0.0
-        best_model_wts = None
-        
-        # 早停机制参数
-        patience_counter = 0
-        best_val_acc = 0.0
-        
-        # 训练循环
-        for epoch in range(num_epochs):
-            print(f'Epoch {epoch+1}/{num_epochs}')
-            
-            # 每个epoch都有训练和验证阶段
-            for phase in ['train', 'val']:
-                if phase == 'train':
-                    model.train()  # 设置模型为训练模式
-                else:
-                    model.eval()   # 设置模型为评估模式
-                
-                running_loss = 0.0
-                running_corrects = 0
-                
-                # 直接使用数据加载器
-                dataloader = dataloaders[phase]
-
-                # 遍历数据
-                for inputs, labels in dataloader:
-                    inputs = inputs.to(device)
-                    labels = labels.to(device)
-                    
-                    # 清零参数梯度
-                    optimizer.zero_grad()
-                    
-                    # 前向传播
-                    with torch.set_grad_enabled(phase == 'train'):
-                        outputs = model(inputs)
-                        loss = criterion(outputs, labels)
-                        _, preds = torch.max(outputs, 1)
-                        
-                        # 反向传播和优化（仅在训练阶段）
-                        if phase == 'train':
-                            loss.backward()
-                            optimizer.step()
-                    
-                    # 统计
-                    running_loss += loss.item() * inputs.size(0)
-                    running_corrects += torch.sum(preds == labels.data)
-                
-                if phase == 'train':
-                    scheduler.step()
-                
-                epoch_loss = running_loss / dataset_sizes[phase]
-                epoch_acc = running_corrects.double() / dataset_sizes[phase]
-                
-                print(f'{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
-                
-                # 深度复制模型
-                if phase == 'val':
-                    # 早停机制检查
-                    if epoch_acc > best_val_acc + min_delta:
-                        best_val_acc = epoch_acc
-                        best_model_wts = model.state_dict()
-                        patience_counter = 0  # 重置耐心计数器
-                        
-                        # 保存最佳模型到weights文件夹
-                        model_save_path = f'weights/best_{model_name}_model.pth'
-                        torch.save(best_model_wts, model_save_path)
-                        print(f'新的最佳模型已保存至 {model_save_path}，准确率: {best_val_acc:.4f}')
-                    else:
-                        patience_counter += 1
-                        print(f'验证准确率未提升，耐心计数器: {patience_counter}/{patience}')
-                        
-                        # 检查是否达到耐心限制
-                        if patience_counter >= patience:
-                            print(f'早停机制触发，停止训练 {model_name} 模型')
-                            # 加载最佳模型权重
-                            if best_model_wts is not None:
-                                model.load_state_dict(best_model_wts)
-                            break  # 跳出epoch循环
-            
-            # 如果触发了早停，也跳出epoch循环
-            if patience_counter >= patience:
-                break
-            
-            print()
-        
-        print(f'模型 {model_name} 训练完成。最佳验证准确率: {best_val_acc:.4f}')
-        
-        # 加载最佳模型权重
-        if best_model_wts is not None:
-            model.load_state_dict(best_model_wts)
-        trained_models[model_name] = model
-    
-    return trained_models
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='训练不同模型')
-    parser.add_argument('--model', type=str, default=['resnet50', 'resnext50', 'densenet169', 'efficientnet_b4', 'vgg16', 'convnext_tiny', 'mobilenet_v2'],
-                        nargs='+',  # 允许接收一个或多个值
-                        choices=['resnet50', 'resnext50', 'densenet169', 'efficientnet_b4', 'vgg16', 'convnext_tiny', 'mobilenet_v2'],
-                        help='选择要训练的模型（可多选）')
-    parser.add_argument('--batch_size', type=int, default=32,
-                        help='训练的批量大小')
-    parser.add_argument('--epochs', type=int, default=100,
-                        help='训练轮数')
-    parser.add_argument('--lr', type=float, default=0.0001,
-                        help='学习率')
-    parser.add_argument('--workers', type=int, default=4,
-                        help='数据加载的线程数')
-    parser.add_argument('--patience', type=int, default=5,
-                        help='早停机制的耐心轮数')
-    parser.add_argument('--min_delta', type=float, default=0.0005,
-                        help='早停机制的最小改善阈值')
-    args = parser.parse_args()
-    
-    models = train_model(
-        model_names=args.model,
-        batch_size=args.batch_size,
-        epochs=args.epochs,
-        learning_rate=args.lr,
-        num_workers=args.workers,
-        patience=args.patience,
-        min_delta=args.min_delta
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        ]
     )
 
-    print(f'所有模型训练完成并已保存最佳权重')
-    print("要生成预测结果，请运行: python generate_predictions.py")
+
+def _unpack_batch(batch: Tuple[torch.Tensor, torch.Tensor, object]) -> Tuple[torch.Tensor, torch.Tensor]:
+    if len(batch) == 3:
+        inputs, labels, _ = batch
+    elif len(batch) == 2:
+        inputs, labels = batch
+    else:
+        raise ValueError("Unexpected batch format: %r" % (batch,))
+    return inputs, labels
+
+
+def _train_single_model(
+    model_name: str,
+    dataloaders: Dict[str, DataLoader],
+    dataset_sizes: Dict[str, int],
+    device: torch.device,
+    epochs: int,
+    lr: float,
+    patience: int,
+    min_delta: float,
+    pretrained: bool,
+) -> nn.Module:
+    num_classes = len(dataloaders["train"].dataset.classes)  # type: ignore[arg-type]
+    model = create_model(model_name, num_classes=num_classes, pretrained=pretrained)
+    model.to(device)
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+
+    best_state = deepcopy(model.state_dict())
+    best_acc = 0.0
+    patience_counter = 0
+
+    for epoch in range(epochs):
+        LOGGER.info("[%s] Epoch %d/%d", model_name, epoch + 1, epochs)
+        epoch_start = time.time()
+        for phase in ("train", "val"):
+            if phase == "train":
+                model.train()
+            else:
+                model.eval()
+
+            running_loss = 0.0
+            running_corrects = 0
+
+            for batch in dataloaders[phase]:
+                inputs, labels = _unpack_batch(batch)
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+
+                optimizer.zero_grad()
+                with torch.set_grad_enabled(phase == "train"):
+                    outputs = model(inputs)
+                    loss = criterion(outputs, labels)
+                    preds = outputs.argmax(dim=1)
+                    if phase == "train":
+                        loss.backward()
+                        optimizer.step()
+
+                running_loss += loss.item() * inputs.size(0)
+                running_corrects += (preds == labels).sum().item()
+
+            if phase == "train":
+                scheduler.step()
+
+            epoch_loss = running_loss / dataset_sizes[phase]
+            epoch_acc = running_corrects / dataset_sizes[phase]
+            LOGGER.info(
+                "[%s] %s loss %.4f acc %.4f (elapsed %.1fs)",
+                model_name,
+                phase,
+                epoch_loss,
+                epoch_acc,
+                time.time() - epoch_start,
+            )
+
+            if phase == "val":
+                if epoch_acc > best_acc + min_delta:
+                    best_acc = epoch_acc
+                    best_state = deepcopy(model.state_dict())
+                    patience_counter = 0
+                    LOGGER.info("[%s] New best validation accuracy: %.4f", model_name, best_acc)
+                else:
+                    patience_counter += 1
+                    LOGGER.debug(
+                        "[%s] Validation improvement below threshold for %d/%d epochs",
+                        model_name,
+                        patience_counter,
+                        patience,
+                    )
+
+        if patience_counter >= patience:
+            LOGGER.info("[%s] Early stopping triggered after %d epochs", model_name, epoch + 1)
+            break
+
+    model.load_state_dict(best_state)
+    return model
+
+
+def main() -> None:
+    args = parse_args()
+    logging.basicConfig(level=getattr(logging, args.log_level))
+
+    transform = _build_transforms()
+    train_dataset = ASOCTDatasetJSON(args.train_json, transform)
+    val_dataset = ASOCTDatasetJSON(args.val_json, transform)
+
+    dataloaders = {
+        "train": DataLoader(
+            train_dataset,
+            batch_size=args.batch_size,
+            shuffle=True,
+            num_workers=args.num_workers,
+            pin_memory=torch.cuda.is_available(),
+        ),
+        "val": DataLoader(
+            val_dataset,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+            pin_memory=torch.cuda.is_available(),
+        ),
+    }
+
+    dataset_sizes = {phase: len(ds) for phase, ds in {"train": train_dataset, "val": val_dataset}.items()}
+
+    weights_dir = Path(args.weights_dir)
+    weights_dir.mkdir(parents=True, exist_ok=True)
+
+    device = torch.device(args.device)
+    LOGGER.info("Using device %s", device)
+
+    for model_name in args.models:
+        if model_name not in available_models():
+            raise ValueError(f"Unsupported model: {model_name}")
+
+        LOGGER.info("Training model %s", model_name)
+        model = _train_single_model(
+            model_name=model_name,
+            dataloaders=dataloaders,
+            dataset_sizes=dataset_sizes,
+            device=device,
+            epochs=args.epochs,
+            lr=args.lr,
+            patience=args.patience,
+            min_delta=args.min_delta,
+            pretrained=not args.no_pretrained,
+        )
+
+        weight_path = weights_dir / f"best_{model_name}.pth"
+        torch.save(model.state_dict(), weight_path)
+        LOGGER.info("Saved weights for %s to %s", model_name, weight_path)
+
+
+if __name__ == "__main__":
+    main()

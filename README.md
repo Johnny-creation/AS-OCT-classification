@@ -1,354 +1,258 @@
-# ASOCT Medical Image Classification with Ensemble Learning
+# AS-OCT Classification and Evaluation Toolkit
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+This repository provides an end-to-end workflow for anterior segment OCT (AS-OCT) multi-class classification. It covers data
+preparation, backbone training, prediction export, rigorous patient-level evaluation, statistical comparisons, calibration,
+stacking-based ensembling, and Grad-CAM visualisation.
 
-A comprehensive deep learning framework for **Anterior Segment Optical Coherence Tomography (ASOCT)** medical image classification, featuring patient-level data splitting to prevent data leakage and 12 ensemble learning methods for enhanced performance.
+The reference task is a four-class problem (`0 = Normal`, `1 = Cataract`, `2 = PACG`, `3 = PACG + Cataract`) but the tooling is
+implemented generically for `N` classes when possible.
 
-## 🚀 Features
+## Key Features
 
-- **🔒 Data Leakage Prevention**: Patient-level (subject-level) data splitting strategy
-- **🧠 Multi-Model Architecture**: Support for 7 state-of-the-art deep learning models
-- **🔬 Advanced Ensemble Learning**: 12 different ensemble methods including voting, averaging, and meta-learning
-- **🎯 Model Interpretability**: GradCAM-based attention heatmaps for visual model interpretation
-- **📊 Comprehensive Evaluation**: Accuracy, Precision, Recall, F1-Score, AUC, and confusion matrices
-- **⚡ GPU Acceleration**: CUDA support for faster training and inference
-- **📁 Organized Results**: Structured output directory for easy result management
+- **Patient-level safety** – data splitting, aggregation, and bootstrap resampling operate at the patient level to prevent data
+  leakage.
+- **Reusable training loop** – train any supported torchvision backbone with early stopping and reproducible settings.
+- **Prediction export** – produce aligned CSV/Parquet tables with logits and probabilities ready for downstream evaluation.
+- **Statistics & calibration** – compute balanced accuracy, F1, PR/ROC curves, bootstrap confidence intervals, McNemar tests,
+  and temperature scaling.
+- **Stacking ensembles** – leak-free meta-learning pipeline with Logistic Regression, SVM, Random Forest, KNN, GaussianNB, and
+  optional XGBoost (if installed).
+- **Interpretability** – lightweight Grad-CAM script for qualitative inspection of trained backbones.
 
-## 📁 Project Structure
+## Repository Layout
 
 ```
-📦 ASOCT-Classification/
-├── 📂 data/                     # Medical image dataset
-│   ├── 📁 Cataract/            # Cataract class images
-│   ├── 📁 Normal/              # Normal class images
-│   ├── 📁 PACG/                # Primary Angle Closure Glaucoma
-│   └── 📁 PACG_Cataract/       # PACG with Cataract
-├── 📂 dataset/                 # Dataset split JSON files
-├── 📂 weights/                 # Trained model weights
-├── 📂 results/                 # All output results
-│   ├── 📂 predictions/         # Model prediction files
-│   ├── 📂 evaluation/          # Model evaluation results
-│   ├── 📂 ensemble/            # Ensemble learning results
-│   │   ├── 📂 models/          # Trained ensemble models
-│   │   └── 📂 figures/         # Performance visualizations
-│   └── 📂 heatmaps/            # Model attention heatmaps
-├── 🐍 split.py                # Patient-level data splitting
-├── 🐍 train_multimodel.py     # Multi-model training pipeline
-├── 🐍 generate_predictions.py # Prediction generation (inference)
-├── 🐍 test_multimodel.py      # Model evaluation
-├── 🐍 advanced_ensemble.py    # Ensemble learning system
-├── 🐍 heatmap_visualization.py # Model attention visualization
-├── 🐍 dataset_utils.py        # Dataset utilities
-└── 📄 requirements.txt        # Python dependencies
+AS-OCT-classification/
+├── dataset/                     # JSON manifests produced by split.py
+├── examples/                    # Synthetic predictions and demo script
+├── reports/                     # Generated metrics, figures, and models
+├── scripts/                     # CLI utilities (evaluation, calibration, stacking)
+├── src/
+│   ├── metrics/                 # Patient-level metrics, calibration, statistics
+│   ├── models/factory.py        # Backbone construction helpers
+│   ├── plots/                   # Matplotlib helpers for PR/ROC/CM
+│   ├── stacking/                # Leak-free stacking pipeline
+│   └── utils/                   # IO helpers for prediction tables
+├── dataset_utils.py             # Dataset loaders exposing metadata
+├── generate_predictions.py      # Export logits/probabilities for trained models
+├── heatmap_visualization.py     # Grad-CAM visualisation script
+├── split.py                     # Patient-level data splitting (JSON manifests)
+├── test_multimodel.py           # Convenience patient-level evaluator
+├── train_multimodel.py          # Backbone training entry-point
+├── README.md                    # This document
+├── README_eval.md               # Legacy evaluation notes (superseded by README.md)
+└── requirements.txt             # Python dependencies
 ```
 
-## 🛠️ Installation
-
-### Prerequisites
-- Python 3.8+
-- CUDA-capable GPU (recommended)
-- 8GB+ RAM
-
-### Setup Environment
+## Environment Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/asoct-classification.git
-cd asoct-classification
-
-# Install dependencies
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Key Dependencies
-```
-torch>=2.0.0
-torchvision>=0.15.0
-scikit-learn>=1.0.0
-matplotlib>=3.5.0
-seaborn>=0.11.0
-numpy>=1.21.0
-pandas>=1.3.0
-Pillow>=8.3.0
-tqdm>=4.62.0
-grad-cam>=1.5.0
-opencv-python>=4.8.0
-```
+### Runtime Dependencies
 
-## 📊 Dataset Structure
+- Python 3.8+
+- PyTorch 2.0+ with torchvision
+- scikit-learn, pandas, numpy, matplotlib, tqdm, joblib
+- `pytorch-grad-cam` for heatmap generation
+- Optional: `xgboost` (for stacking) – the pipeline will skip it if unavailable.
 
-Organize your ASOCT images following this hierarchy:
+## Data Preparation
 
-```
-data/
-├── Cataract/
-│   ├── PatientID_OS/          # Left eye (Oculus Sinister)
-│   │   ├── image001.jpg
-│   │   └── image002.jpg
-│   └── PatientID_OD/          # Right eye (Oculus Dexter)
-├── Normal/
-├── PACG/
-└── PACG_Cataract/
-```
+1. Organise images under `data/<CLASS>/<PATIENT_ID>/*.jpg` (or similar). Patient IDs should be encoded in folder names and can
+   include `_OS/_OD` suffixes.
+2. Generate patient-level splits using:
 
-> **Note**: Patient ID extraction automatically handles `_OS` and `_OD` suffixes to ensure proper patient-level splitting.
+   ```bash
+   python split.py
+   ```
 
-## 🚀 Quick Start
+   The script writes JSON manifests to `dataset/` (train, validation, ensemble, test). Each entry contains the image path,
+   label, and patient identifier.
 
-### Step 1: Data Preparation & Splitting
+## Backbone Training
 
-Perform patient-level data splitting to prevent data leakage:
+Train one or more backbones with a single command:
 
 ```bash
-python split.py
+python train_multimodel.py \
+  --models resnet50 densenet169 efficientnet_b4 \
+  --train-json dataset/asoct.train-model.json \
+  --val-json dataset/asoct.val-model.json \
+  --epochs 50 --batch-size 32 --patience 7
 ```
 
-**Output:**
-- `asoct.train-model.json` - Training set for model development
-- `asoct.val-model.json` - Validation set for model selection
-- `asoct.val-ensemble.json` - Validation set for ensemble training
-- `asoct.test.json` - Test set for final evaluation
+Key options:
 
-### Step 2: Model Training
+- `--models`: identifiers from `src/models/factory.py` (e.g. `resnet50`, `resnext50`, `efficientnet_b4`, `vgg16`, `convnext_tiny`,
+  `mobilenet_v2`, `densenet169`).
+- `--no-pretrained`: disable ImageNet initialisation.
+- `--weights-dir`: where `best_<model>.pth` checkpoints are saved.
 
-Train multiple deep learning models:
+Early stopping is based on patient-level validation accuracy. The best state per model is stored in `weights/` by default.
+
+## Prediction Export
+
+After training, export logits and probabilities for any manifest (e.g. ensemble set, test set):
 
 ```bash
-# Train all supported models (default)
-python train_multimodel.py
-
-# Train specific models
-python train_multimodel.py --model resnet50 densenet169 vgg16
-
-# Custom training parameters
-python train_multimodel.py --batch_size 64 --epochs 50 --lr 0.0001 --patience 10
+python generate_predictions.py \
+  --dataset dataset/asoct.val-ensemble.json \
+  --models resnet50 efficientnet_b4 \
+  --weights-dir weights \
+  --out reports/predictions/val_ensemble.csv
 ```
 
-**Supported Models:**
-`resnet50` | `resnext50` | `densenet169` | `efficientnet_b4` | `vgg16` | `convnext_tiny` | `mobilenet_v2`
+The resulting table includes columns:
 
-### Step 3: Generate Predictions
+- `patient_id`, `image_id`, `image_path`, `label_name`, `y_true`
+- `<model>_logit_<k>` and `<model>_proba_<k>` for each class `k`
 
-Generate predictions for ensemble learning:
+These files feed directly into the evaluation and stacking scripts.
+
+## Patient-level Evaluation
+
+### Quick evaluation
+
+`test_multimodel.py` combines prediction export and patient-level metrics in one step:
 
 ```bash
-# Generate predictions for all models
-python generate_predictions.py
-
-# Generate predictions for specific models and datasets
-python generate_predictions.py --models resnet50+densenet169+vgg16 --subsets val-ensemble+test
+python test_multimodel.py \
+  --dataset dataset/asoct.test.json \
+  --models resnet50 efficientnet_b4 \
+  --weights-dir weights \
+  --outdir reports/evaluation \
+  --agg mean
 ```
 
-### Step 4: Model Evaluation
+Outputs:
 
-Evaluate individual model performance:
+- `image_level_predictions.csv`: logits and probabilities for each image
+- `<model>_patient_level.csv`: aggregated patient-level probabilities
+- `patient_metrics.csv`: balanced accuracy, macro/micro F1, per-class AP & ROC-AUC, and macro means
+
+### Detailed toolkit (scripts/)
+
+The `scripts/` directory contains CLI utilities that operate on prediction tables (CSV or Parquet). Examples use synthetic data
+from `examples/data/`.
 
 ```bash
-# Evaluate all trained models
-python test_multimodel.py
+# Patient-level metrics, bootstrap CI, and plots
+python scripts/eval_patient_level.py \
+  --input examples/data/preds_resnet50.csv examples/data/preds_vit_b.csv \
+  --id-col patient_id \
+  --true-col y_true \
+  --proba-prefixes resnet50,vit_b \
+  --agg mean \
+  --bootstrap 2000 \
+  --outdir reports
 
-# Evaluate specific models
-python test_multimodel.py --models resnet50+densenet169+vgg16
+# Model comparison (McNemar + AUC difference)
+python scripts/compare_models.py \
+  --inputs examples/data/preds_resnet50.csv examples/data/preds_vit_b.csv \
+  --id-col patient_id \
+  --true-col y_true \
+  --proba-prefixes resnet50,vit_b \
+  --outdir reports
+
+# Temperature scaling on ensemble validation set
+python scripts/fit_temperature.py \
+  --ens-file examples/data/ens_resnet50.csv \
+  --apply-to examples/data/preds_resnet50.csv \
+  --by per_model \
+  --outdir reports
+
+# Stacking meta-learner (leak-free)
+python scripts/train_stacking.py \
+  --ens-file examples/data/stack_ens_features.csv \
+  --labels-col y_true \
+  --feature-type logit \
+  --meta lr \
+  --outdir reports
+python scripts/infer_stacking.py \
+  --stacker reports/stacking_lr.pkl \
+  --inputs examples/data/preds_resnet50.csv examples/data/preds_vit_b.csv \
+  --feature-type logit \
+  --out reports/stacked_preds.csv
 ```
 
-### Step 5: Ensemble Learning
+All evaluation figures (PR, ROC, confusion matrix, reliability diagrams) are written to `reports/figs/` with timestamps.
 
-Deploy advanced ensemble methods for enhanced performance:
+## Statistical Testing & Confidence Intervals
+
+The evaluation scripts support bootstrap resampling (default 2000 iterations) using patients as the sampling unit. Reported
+metrics include confidence intervals (2.5% – 97.5%). For pairwise comparisons `scripts/compare_models.py` provides:
+
+- **McNemar test** for paired accuracy differences
+- **AUC difference** via DeLong (if available) or bootstrap fallback
+
+Significance is assessed at `α = 0.05`.
+
+## Calibration & Temperature Scaling
+
+`scripts/fit_temperature.py` fits positive temperature parameters on the disjoint ensemble validation set (`D_ens`). The script
+supports per-model or ensemble-wide scaling and writes calibrated predictions plus a JSON summary of fitted temperatures. The
+calibration module also computes Brier score, ECE, ACE, and reliability diagrams with confidence bands.
+
+## Stacking Ensembles
+
+The stacking pipeline (`scripts/train_stacking.py` / `scripts/infer_stacking.py`) ensures no leakage by consuming only frozen
+predictions on `D_ens`. Supported meta-learners:
+
+- Logistic Regression (default)
+- Linear SVM + Platt scaling (`CalibratedClassifierCV`)
+- RandomForestClassifier
+- KNeighborsClassifier
+- GaussianNB
+- XGBoost (optional, skipped when not installed)
+
+Feature inputs can be softmax probabilities or raw logits. Additional ensemble baselines (weighted average, hard voting) are
+available directly through `src/stacking/pipeline.py`.
+
+## Grad-CAM Visualisation
+
+Generate qualitative heatmaps for trained models:
 
 ```bash
-# Run all 12 ensemble methods
-python advanced_ensemble.py
-
-# Custom ensemble configuration
-python advanced_ensemble.py --models resnet50+densenet169+vgg16 \
-                           --ensemble_methods LogisticRegression+MeanWeighted
+python heatmap_visualization.py \
+  --image path/to/sample.jpg \
+  --model resnet50 \
+  --weights weights/best_resnet50.pth \
+  --output reports/figs/sample_gradcam.png
 ```
 
-### Step 6: Model Attention Visualization
+Specify `--target-class` to visualise a particular class index. If omitted, the predicted class is used.
 
-Generate heatmaps to visualize model attention patterns:
+## Demo Workflow
+
+Run the synthetic example pipeline end-to-end:
 
 ```bash
-# Analyze all sample images with default models
-python heatmap_visualization.py
-
-# Analyze specific image with custom models
-python heatmap_visualization.py --image_path path/to/image.jpg \
-                               --models resnet50+densenet169+efficientnet_b4 \
-                               --ensemble_method MeanWeighted
+bash examples/run_demo.sh
 ```
 
-## 🧬 Ensemble Learning Methods
+This script demonstrates aggregation, evaluation, temperature scaling, stacking, and statistical comparison using the example
+tables in `examples/data/`.
 
-Our framework implements **12 sophisticated ensemble techniques** organized into three categories:
+## Testing
 
-### 📊 Statistical Methods
-| Method | Description | Use Case |
-|--------|-------------|----------|
-| **MeanUnweighted** | Equal-weight averaging | Baseline ensemble performance |
-| **MeanWeighted** | Performance-weighted averaging | When models have varying quality |
-| **MajorityVoting_Hard** | Discrete class voting | Robust predictions with clear decisions |
-| **MajorityVoting_Soft** | Probability averaging | Smooth probability distributions |
-
-### 🤖 Meta-Learning Approaches
-| Method | Description | Strengths |
-|--------|-------------|-----------|
-| **LogisticRegression** | Linear meta-classifier | Fast, interpretable, often optimal |
-| **DecisionTree** | Tree-based meta-learner | Handles non-linear relationships |
-| **KNeighbors** | Instance-based learning | Captures local patterns |
-| **SupportVectorMachine** | SVM meta-classifier | Strong generalization |
-| **NaiveBayes** | Probabilistic classifier | Robust to noise |
-| **GaussianProcess** | Bayesian approach | Uncertainty quantification |
-
-### 🎯 Selection Methods
-| Method | Description | Strategy |
-|--------|-------------|----------|
-| **GlobalArgmax** | Confidence-based selection | Choose most confident prediction |
-| **BestModel** | Single best performer | Simple but effective baseline |
-
-## 📈 Output & Results
-
-### 🏋️ Training & Prediction Phase
-```
-weights/
-├── best_resnet50_model.pth         # Trained model weights
-├── best_densenet169_model.pth
-└── ...
-
-results/predictions/
-├── predictions_resnet50_test_best.json              # Model predictions for test set
-├── predictions_resnet50_val-ensemble_best.json      # Model predictions for ensemble training
-├── predictions_densenet169_test_best.json
-└── ...
-```
-
-### 🧪 Evaluation Phase
-```
-results/evaluation/
-├── resnet50_confusion_matrix.png           # Per-model confusion matrices
-├── densenet169_class_accuracy.png          # Class-wise accuracy plots
-├── model_comparison.png                    # Performance comparison chart
-└── evaluation_results.json                 # Comprehensive metrics summary
-```
-
-### 🔬 Ensemble Learning Phase
-```
-results/ensemble/
-├── models/
-│   ├── LogisticRegression.pkl              # Trained ensemble models
-│   ├── MeanWeighted.pkl
-│   └── ...
-├── ensemble_results.json                   # All ensemble method results
-└── figures/
-    └── ensemble_comparison.png             # Ensemble performance visualization
-```
-
-### 🎯 Model Attention Visualization
-```
-results/heatmaps/
-├── cataract/
-│   ├── resnet50_heatmap.png                # ResNet50 attention heatmap
-│   ├── densenet169_heatmap.png             # DenseNet169 attention heatmap
-│   └── analysis_summary.json               # Prediction results with ensemble
-├── normal/
-├── pacg/
-├── pacg_cataract/
-└── batch_analysis_summary.json             # Comprehensive heatmap analysis
-```
-
-## 🔧 Key Technical Features
-
-### 🔒 Patient-Level Data Splitting
-Prevents data leakage by ensuring images from the same patient never appear in both training and test sets. The system automatically handles `_OS` and `_OD` suffixes to extract patient IDs.
-
-### 💾 Modular Architecture
-- **Training**: Focus on model optimization
-- **Prediction Generation**: Separate inference step for flexibility
-- **Ensemble Learning**: Unified framework supporting 12 different methods
-- **Attention Visualization**: GradCAM-based heatmap generation for model interpretability
-
-### 🔍 Model Interpretability
-Generate attention heatmaps to understand what regions of the image each model focuses on during classification, providing insights into model decision-making processes.
-
-### 🏗️ Extensible Design
-All ensemble methods implement a common interface, making it easy to add new ensemble techniques or modify existing ones.
-
-## 📊 Evaluation Metrics
-
-Our comprehensive evaluation includes:
-
-| Metric | Description | Weight |
-|--------|-------------|--------|
-| **Accuracy** | Overall classification accuracy | Standard |
-| **Precision** | Weighted average precision | Class-balanced |
-| **Recall** | Weighted average recall | Class-balanced |
-| **F1-Score** | Weighted harmonic mean | Primary metric |
-| **AUC** | Area under ROC curve | Multi-class OvR |
-| **Confusion Matrix** | Detailed error analysis | Visual |
-
-## 🎯 Performance Benchmarks
-
-| Metric | Single Model | Ensemble | Improvement |
-|--------|--------------|----------|-------------|
-| **Accuracy** | 84.3-88.8% | 86.4-89.2% | +1.1-2.9% |
-| **Precision** | 0.831-0.882 | 0.857-0.888 | +0.026-0.057 |
-| **Recall** | 0.843-0.889 | 0.864-0.892 | +0.021-0.049 |
-| **F1-Score** | 0.836-0.882 | 0.856-0.884 | +0.020-0.048 |
-| **AUC** | 0.956-0.969 | 0.908-0.974 | ✅ Robust classification |
-
-**🏆 Best Performers:**
-- **Single Model**: ResNet50 (88.56% accuracy, 0.968 AUC)
-- **Ensemble**: LogisticRegression (89.16% accuracy, 0.974 AUC)
-
-> **💡 Pro Tip**: LogisticRegression ensemble achieves the best performance, while MeanWeighted provides stable results with minimal complexity. Use attention heatmaps to understand model focus areas and improve interpretability.
-
-
-## 🚀 Complete Workflow Example
+Unit tests cover aggregation, calibration, stacking, and dataset handling:
 
 ```bash
-# 1. Prepare patient-level data splits
-python split.py
-
-# 2. Train multiple architectures
-python train_multimodel.py --model resnet50 densenet169 vgg16 --epochs 30
-
-# 3. Generate predictions for ensemble learning
-python generate_predictions.py --models resnet50+densenet169+vgg16
-
-# 4. Evaluate individual models
-python test_multimodel.py --models resnet50+densenet169+vgg16
-
-# 5. Deploy ensemble learning
-python advanced_ensemble.py --models resnet50+densenet169+vgg16
-
-# 6. Generate attention heatmaps
-python heatmap_visualization.py --models resnet50+densenet169+vgg16
+pytest -q
 ```
 
-## 📝 Citation
+At least ten assertions check patient-level aggregation, bootstrap CIs, McNemar statistics, temperature scaling behaviour, and
+leakage safeguards in the stacking pipeline.
 
-If you use this framework in your research, please cite:
+## Troubleshooting
 
-```bibtex
-@misc{asoct-classification,
-  title={ASOCT Medical Image Classification with Ensemble Learning},
-  author={Jiongning Zhao},
-  year={2025},
-  publisher={GitHub},
-  url={https://github.com/Johnny-creation/asoct-classification}
-}
-```
+- **Missing probability columns**: ensure exported predictions follow the `<prefix>_proba_<class>` naming convention.
+- **Probability rows not summing to one**: utilities automatically renormalise and log warnings.
+- **Unavailable dependencies**: optional components (e.g. XGBoost) degrade gracefully; install extra packages if needed.
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
----
-
-**🏥 This framework provides a complete, reliable, and efficient solution for medical image classification, specifically designed for high-accuracy diagnostic applications requiring robust performance and clinical reliability.**
+For additional details on evaluation tooling refer to `README_eval.md` (kept for historical context).
